@@ -76,6 +76,7 @@ namespace Test_ARMO_0324
                 file_name = file_name_txt.Text;
                 if (start_dir.Length != 0 && file_name.Length != 0)
                 {
+                    stop_thread = false;
                     start_dir_txt.IsEnabled = false;
                     file_name_txt.IsEnabled = false;
                     path_txt.Visibility = Visibility.Visible;
@@ -104,7 +105,7 @@ namespace Test_ARMO_0324
             {
                 lock (locker)
                 {
-                   // stop_search = true;
+                    stop_search = false;
                     stop_thread = true;
                 }
                 thread_search.Interrupt();
@@ -115,7 +116,6 @@ namespace Test_ARMO_0324
                 time_now = new();
                 all_files = 0;
                 correct_files = 0;
-                stop_search = false;
                 stop_or_start.Content = "Стоп";
                 locker = new();
                 path_txt.Visibility = Visibility.Hidden;
@@ -140,45 +140,43 @@ namespace Test_ARMO_0324
         {
             bool thread_stop;
             bool shutdown;
-            lock (locker)
-            {
-                thread_stop = stop_search;
-                shutdown = stop_thread;
-            }
-            while (thread_stop)
-            {
-                Thread.Sleep(200);
-                lock (locker)
-                {
-                    thread_stop = stop_search;
-                }
-            }
             now_dir = path_now;
             try
             {
-                if (!shutdown)
+                all_files += Directory.GetFiles(path_now).Length;
+                var files = Directory.EnumerateFiles(path_now, file_name);
+                foreach (string filename in files)
                 {
-                    all_files += Directory.GetFiles(path_now).Length;
-                    var files = Directory.EnumerateFiles(path_now, file_name);
-                    foreach (string filename in files)
+                    //Thread.Sleep(1000);//dell
+                    string[] buff = filename.Split('\\');
+                    Dispatcher.Invoke(new Action(() => Add_File(perents, buff[buff.Length - 1])), DispatcherPriority.Normal, null);
+                    correct_files++;
+                }
+                var dirs = Directory.EnumerateDirectories(now_dir, "*.*");
+                foreach (string dirname in dirs)
+                {
+                    lock (locker)
                     {
-                        //Thread.Sleep(1000);//dell
-                        string[] buff = filename.Split('\\');
-                        Dispatcher.Invoke(new Action(() => Add_File(perents, buff[buff.Length - 1])), DispatcherPriority.Normal, null);
-                        correct_files++;
+                        thread_stop = stop_search;
+                        shutdown = stop_thread;
                     }
-                    var dirs = Directory.EnumerateDirectories(now_dir, "*.*");
-                    foreach (string dirname in dirs)
+                    while (thread_stop)
                     {
-                        if (!shutdown)
+                        Thread.Sleep(200);
+                        lock (locker)
                         {
-                            TreeViewItem item = null;
-                            string[] buff = dirname.Split('\\');
-                            Dispatcher.Invoke(new Action(() => Add_Dir(perents, buff[buff.Length - 1], out item)), DispatcherPriority.Normal, null);
-                            Show_Files(dirname, item);
+                            thread_stop = stop_search;
                         }
                     }
+                    if (!shutdown)
+                    {
+                        TreeViewItem item = null;
+                        string[] buff = dirname.Split('\\');
+                        Dispatcher.Invoke(new Action(() => Add_Dir(perents, buff[buff.Length - 1], out item)), DispatcherPriority.Normal, null);
+                        Show_Files(dirname, item);
+                    }
                 }
+
             }
             catch (Exception ex)
             {
